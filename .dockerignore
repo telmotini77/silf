@@ -1,0 +1,8 @@
+.env
+.git
+__pycache__/
+*.py[cod]
+.pytest_cache/
+imonnit-telegram/
+imonnit_telegram.egg-info/
+tests/

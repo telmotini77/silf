@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "carbonio-telegram"
+version = "1.0.0"
+description = "Servicio de reenvío de correos Carbonio a Telegram"
+requires-python = ">=3.12"
+
+dependencies = [
+    "fastapi[all]>=0.100.0",
+    "uvicorn>=0.23.0",
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.28.0",
+    "alembic>=1.11.0",
+    "pydantic-settings>=2.0.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=4.9.0",
+    "nh3>=0.2.14",
+    "weasyprint>=60.0",
+    "tzdata>=2023.3",
+    "httpx>=0.24.1",
+    "pytz>=2023.3",
+    "aioimaplib>=1.0.1"
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0"
+]
