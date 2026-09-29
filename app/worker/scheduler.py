@@ -4,26 +4,42 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import update
+from sqlalchemy import and_, func, or_, update
 
 from app.db import AsyncSessionLocal
 from app.models import Message, MessageStatus
+from app.worker.dispatcher import MAX_ATTEMPTS
 
 logger = logging.getLogger(__name__)
 
 
 async def recover_stuck_messages() -> int:
-    threshold = datetime.now(timezone.utc) - timedelta(minutes=10)
+    now = datetime.now(timezone.utc)
+    threshold = now - timedelta(minutes=10)
+    abandoned = and_(Message.status == MessageStatus.SENDING, Message.updated_at < threshold)
+    exhausted = Message.attempts >= MAX_ATTEMPTS
     async with AsyncSessionLocal() as db:
-        result = await db.execute(
+        # El dispatcher ignora los mensajes que agotaron sus intentos; si
+        # volvieran a RETRY quedarían en la cola para siempre.
+        failed = await db.execute(
             update(Message)
-            .where(Message.status == MessageStatus.SENDING, Message.updated_at < threshold)
-            .values(status=MessageStatus.RETRY, next_attempt_at=datetime.now(timezone.utc))
+            .where(or_(abandoned, Message.status == MessageStatus.RETRY), exhausted)
+            .values(
+                status=MessageStatus.FAILED,
+                last_error=func.coalesce(Message.last_error, "Delivery interrupted after max attempts"),
+            )
+        )
+        recovered = await db.execute(
+            update(Message)
+            .where(abandoned, ~exhausted)
+            .values(status=MessageStatus.RETRY, next_attempt_at=now)
         )
         await db.commit()
-    if result.rowcount:
-        logger.warning("Recovered %s abandoned message(s)", result.rowcount)
-    return result.rowcount or 0
+    if failed.rowcount:
+        logger.error("Marked %s exhausted message(s) as failed", failed.rowcount)
+    if recovered.rowcount:
+        logger.warning("Recovered %s abandoned message(s)", recovered.rowcount)
+    return recovered.rowcount or 0
 
 
 async def scheduler_loop() -> None:

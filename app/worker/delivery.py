@@ -14,7 +14,6 @@ async def deliver_message(db: AsyncSession, msg: Message) -> None:
     if msg.raw_type.value != "eml":
         raise ValueError(f"Unsupported message type: {msg.raw_type}")
 
-    delivery = msg.delivery or {}
     parsed = parse_mime(msg.raw)
     text = build_equivalent(
         parsed.subject, parsed.sender, parsed.date, parsed.html, parsed.text
@@ -25,12 +24,12 @@ async def deliver_message(db: AsyncSession, msg: Message) -> None:
     reply_to = None
     for index, chunk in enumerate(split_message(text)):
         key = f"text:{index}"
-        if key not in delivery:
+        message_id = (msg.delivery or {}).get(key)
+        if message_id is None:
             message_id = await telegram_client.send_message(chunk, reply_to)
-            delivery[key] = message_id
-            if index == 0:
-                reply_to = message_id
-        elif index == 0:
-            reply_to = delivery[key]
-
-    msg.delivery = delivery
+            # JSONB no rastrea mutaciones en el mismo dict: se asigna una copia
+            # y se confirma cada parte para que un reintento no la reenvíe.
+            msg.delivery = {**(msg.delivery or {}), key: message_id}
+            await db.commit()
+        if index == 0:
+            reply_to = message_id

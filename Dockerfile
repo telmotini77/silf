@@ -3,13 +3,9 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Instalar dependencias del sistema para WeasyPrint
+# Compiladores por si alguna dependencia no publica wheel para la plataforma
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    libpango-1.0-0 \
-    libpangoft2-1.0-0 \
-    libharfbuzz-subset0 \
-    fonts-dejavu \
     && rm -rf /var/lib/apt/lists/*
 
 # Crear usuario no root

@@ -45,7 +45,11 @@ class TelegramClient:
             if resp.status_code == 200:
                 return str(resp.json()["result"]["message_id"])
                 
-            resp_data = resp.json()
+            try:
+                resp_data = resp.json()
+            except ValueError:
+                # Proxies o errores 5xx pueden devolver HTML en vez de JSON.
+                resp_data = {}
             err_desc = resp_data.get("description", "")
             
             if resp.status_code == 429:
@@ -66,6 +70,9 @@ class TelegramClient:
             if attempt == 4:
                 raise TelegramError(f"HTTP {resp.status_code}: {err_desc}") from None
             await asyncio.sleep(2 ** attempt)
+
+        # Solo se llega aquí si todos los intentos recibieron HTTP 429.
+        raise TelegramError("HTTP 429: rate limit persisted after 5 attempts")
 
     async def send_message(self, text: str, reply_to: Optional[str] = None) -> str:
         data = {
